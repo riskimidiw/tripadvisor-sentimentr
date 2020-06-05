@@ -1,0 +1,149 @@
+---
+title: "Project Akhir Data Science"
+author: 'Rafly Pradana Putra / 123170028, Riski Midi Wardana / 123170035'
+date: "6/5/2020"
+output: 
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**`global`**
+```{r global}
+library(shiny)
+library(shinycssloaders)
+library(wordcloud)
+library(ggplot2)
+library(shinydashboard)
+library(dplyr)
+library(tidytext)
+library(DT)
+
+source("scrapper/review.R")
+source("classifier/naive_bayes.R")
+
+features <- readRDS(features_rds_path)
+```
+
+**`ui`**
+```{r ui}
+ui <- dashboardPage(
+  
+  dashboardHeader(title = "Tripadvisor Restaurant Review"),
+  
+  dashboardSidebar(
+    textInput(
+      "url",
+      "Enter tripadvisor restauran url", 
+      placeholder = "url", 
+      value = "https://www.tripadvisor.com/Restaurant_Review-g37209-d739238-Reviews-Weber_Grill_Indianapolis-Indianapolis_Indiana.html"
+    ),
+    sliderInput(
+      "size",
+      "Total reviews",
+      min = 0,
+      max = 1000,
+      value = 20
+    ),
+    fluidPage(
+      submitButton("Submit"),
+    )
+  ),
+  
+  dashboardBody(
+    fluidRow(
+      valueBoxOutput("total_review"),
+      valueBoxOutput("positive_review"),
+      valueBoxOutput("negative_review")
+    ),
+    fluidRow(
+      box(
+        title = "Sentimen Analisis",
+        solidHeader = T,
+        width = 12,
+        collapsible = T,
+        div(DT::dataTableOutput("table_review") %>% withSpinner(color="#1167b1"), style = "font-size: 70%;")
+      ),
+    ),
+    fluidRow(
+      box(title = "Wordcloud",
+          solidHeader = T,
+          width = 12,
+          collapsible = T,
+          plotOutput("wordcloud") %>% withSpinner(color="#1167b1")
+      ),
+    )
+  )
+)
+```
+
+**`server`**
+```{r server}
+server <- function(input, output) {
+  
+  data <- reactive({
+    withProgress({
+      setProgress(message = "Collecting data", value = 0)
+      
+      result <- get_restaurant_reviews(input$url, input$size, incProgress)
+    })
+    
+    return(result)
+  })
+  
+  prediction_data <- reactive({
+    withProgress({
+      setProgress(message = "Predicting sentiment", value = 0)
+      
+      reviews <- data()$review
+      incProgress(1/2)
+      prediction <- predict_sentiment(reviews)
+      incProgress(1/2)
+    })
+    prediction$reviewer <- data()$reviewer
+    
+    return(prediction)
+  })
+  
+  output$table_review <- renderDataTable(datatable({
+    prediction_data()
+  }))
+  
+  output$total_review <- renderValueBox({
+    valueBox(
+      "Total", 
+      paste0(nrow(prediction_data()), " review"),
+      icon = icon("pen"),
+      color = "blue"
+    )
+  })
+  
+  output$positive_review <- renderValueBox({
+    valueBox(
+      "Positive", 
+      paste0(nrow(prediction_data() %>% filter(sentiment == "Positive")), " review"),
+      icon = icon("smile"),
+      color = "green")
+  })
+  
+  output$negative_review <- renderValueBox({
+    valueBox(
+      "Negative",
+      paste0(nrow(prediction_data() %>% filter(sentiment == "Negative")), " review"), 
+      icon = icon("frown"),
+      color = "red")
+  })
+  
+  output$wordcloud <- renderPlot({
+    data.corpus <- clean_data(data()$review)
+    wordcloud(data.corpus, min.freq = 30, max.words = 50)
+  })
+}
+```
+
+**`run-app`**
+```{r run-app}
+shinyApp(ui = ui, server = server)
+```

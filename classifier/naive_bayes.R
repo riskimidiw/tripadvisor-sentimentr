@@ -10,17 +10,13 @@ naive_bayes_rda_path = "classifier/naive_bayes.rda"
 
 # Membersihkan data dan merubah data menjadi bentuk corpus
 clean_data <- function(data) {
-  corpus <- Corpus(VectorSource(data))
-  corpus_clean <- corpus %>% 
-    tm_map(content_transformer(tolower)) %>% #Mengubah menjadi huruf nonkapital
-    tm_map(removePunctuation) %>% #Menghapus tanda baca
-    tm_map(removeNumbers) %>% #Menghapus angka
-    tm_map(removeWords, stopwords(kind = "en")) %>% #Menghapus stopwords
-    tm_map(stripWhitespace) #Mengubah blank space menjadi strip
+  corpus <- VCorpus(VectorSource(data))
   
-  #Mengecek perbedaan corpus yang sudah dibersihkan dengan yang belum
-  corpus[[1]]$content
-  corpus_clean[[1]]$content
+  corpus_clean <- tm_map(corpus, content_transformer(tolower))
+  corpus_clean <- tm_map(corpus_clean, removeNumbers)
+  corpus_clean <- tm_map(corpus_clean, removeWords, stopwords())
+  corpus_clean <- tm_map(corpus_clean, removePunctuation)
+  corpus_clean <- tm_map(corpus_clean, stripWhitespace)
   
   return(corpus_clean)
 }
@@ -79,30 +75,28 @@ train_model <- function() {
   freq_terms <- findFreqTerms(data.dtm.train, 3)
   length(freq_terms)
   
-  #Save features yang sudah dibuat
+  # Save features yang sudah dibuat
   saveRDS(freq_terms, file = features_rds_path)
-  #save(freq_terms, file = features_rds_path)
   
-  #Mengaplikasikan fungsi convert_count untuk mendapatkan hasil training dan testing DTM
+  # Mengaplikasikan fungsi convert_count untuk mendapatkan hasil training dan testing DTM
   data.dtm.train <- apply_feature(data.corpus.train, freq_terms)
   data.dtm.test <- apply_feature(data.corpus.test, freq_terms)
   
-  #Membuat model naive bayes
+  # Membuat model naive bayes
   model <- naiveBayes(data.dtm.train, data.source.train$sentiment, laplace = 1)
   
-  #Save Model yang sudah dibuat agar bisa dipakai di Shiny
+  # Save Model yang sudah dibuat agar bisa dipakai di Shiny
   save(model, file = naive_bayes_rda_path)
   
-  #Membuat prediksi
-  prediction <- predict_sentiment(data.dtm.test)
+  # Membuat prediksi
+  prediction <- predict(model, newdata = data.dtm.test) 
   
-  
-  #Mengecek akurasi dari model yang telah dibuat
+  # Mengecek akurasi dari model yang telah dibuat
   result <- confusionMatrix(table(Prediction = prediction, Actual = data.source.test$sentiment))
   result
 }
 
-# Predict review sentiment
+# Prediksi sentimen
 predict_sentiment <- function(review) {
   features <- readRDS(features_rds_path)
   model <- get(load(naive_bayes_rda_path))
@@ -114,5 +108,5 @@ predict_sentiment <- function(review) {
   return(data.frame(review = review, sentiment = prediction))
 }
 
-# Hapus komentar dibawah untuk traning model
+# Hapus komentar untuk traning data
 # train_model()

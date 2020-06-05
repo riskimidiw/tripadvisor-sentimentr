@@ -1,8 +1,5 @@
 library(rvest)
 
-# get_restaurant_reviews return data frame contains reviews and authors
-# from scrapping tripadvisor website by url limited by size
-# if size doesn't specified it will return all of data
 get_restaurant_reviews <- function(url, size = -1, incProgress = NULL) {
     reviews <- character()
     reviewers <- character()
